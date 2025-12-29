@@ -1,0 +1,51 @@
+services:
+  service-a:
+    build:
+      context: .
+      dockerfile: docker/service-a.Dockerfile
+    environment:
+      - PORT=8080
+      - SERVICE_B_URL=http://service-b:8081
+      - OTEL_SERVICE_NAME=service-a
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_TRACES_SAMPLER=always_on
+    depends_on:
+      - service-b
+      - otel-collector
+    ports:
+      - "8080:8080"
+
+  service-b:
+    build:
+      context: .
+      dockerfile: docker/service-b.Dockerfile
+    environment:
+      - PORT=8081
+      - OTEL_SERVICE_NAME=service-b
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_TRACES_SAMPLER=always_on
+      - VIA_CEP_BASE_URL=https://viacep.com.br
+      - WEATHER_API_BASE_URL=https://api.weatherapi.com
+      - WEATHER_API_KEY=${WEATHER_API_KEY}
+    depends_on:
+      - otel-collector
+    ports:
+      - "8081:8081"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4318:4318"   # OTLP HTTP
+      - "4317:4317"   # OTLP gRPC (unused, but handy)
+    depends_on:
+      - zipkin
+
+  zipkin:
+    image: openzipkin/zipkin:2.24
+    ports:
+      - "9411:9411"
